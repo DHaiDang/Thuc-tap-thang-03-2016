@@ -1,172 +1,394 @@
-# NFV - Network Functions Virtualization
+# Lab thực hành cấu hình KVM với giao diện WebVirt
 # Mục lục
-### [1. NFV definition](#def)
-### [2. NFV benefits](#benefits)
-### [3. NFV Architecture](#arch)
-### [4. NFV Usecases](#usecases)
-### [5. Thách thức của NFV](#challenges)
-### [6. Tham khảo](#ref)
+### [1. Giới thiệu WebVirt](#intro)
+### [2. Mô hình cài đặt](#topo)
+### [3. Cài đặt và cấu hình WebVirt](#install)
+### [3.1. Cài đặt WebVirtMgr(Web panel)](#web)
+### [3.2. Cài đặt host server(server chứa các VM)](#host)
+### [4. Sử dụng WebVirt](#features)
+### [5. Tham khảo](#ref)
 ---
 
-## <a name="def"></a>1. NFV definition
+## <a name="intro"></a>1. Giới thiệu WebVirt
+WebVirtMgr là công cụ quản lý các máy ảo libvirt-based(hỗ trợ tương tác với KVM thông qua libvirt nhờ các API của libvirt) có giao diện nền web. Nó cho phép tạo và cấu hình các domain mới, chỉnh sửa tài nguyên cấp phát cho domain. Ngoài ra WebVirtMgr cũng cung cấp một VNC viewer sử dụng SSH tunnel để truy cập máy ảo thông qua một console đồ họa. Hiện tại WebVirtMgr mới chỉ hỗ trợ KVM.
 
-### Giới thiệu
+## <a name="topo"></a>2. Mô hình cài đặt
 
-Hệ thống mạng viễn thông hiện tại được vận hành sử dụng các thiết bị phần cứng độc quyền của nhiều nhà cung cấp khác nhau. Việc vận hành network service mới đồng nghĩa với việc sử dụng thêm nhiều thiết bị hơn, đòi hỏi phải mở rộng không gian để triển khai, đặt ra vấn đề về việc chi phí năng lượng ngày càng tăng, thách thức về vốn đầu tư, yêu cầu các kỹ năng cần thiết để thiết kế, tích hợp và vận hành các thiết bị mạng vật lý càng ngày càng phức tạp. Ngoài ra vòng đời các thiết bị phần cứng cũng không dài, yêu cầu có kế hoạch về chu kì thiết kế - tích hợp - triển khai phù hợp. Tệ hơn, vòng đời của phần cứng đang ngày một ngắn dần do sự phát triển nhanh chóng của các dịch vụ và công nghệ, gây khó khăn cho việc triển khai các network services mới để thu về lợi nhuận, hạn chế sự đổi mới bởi vì xu hướng hiện tại là hướng về các giải pháp mạng lưới tập trung.
+![topo](http://i.imgur.com/LF8uEMg.jpg)
 
-### Definition
-Network Functions Virtualization (NFV) mang đến cách thức mới để thiết kế, triển khai và quản lý các dịch vụ mạng, sử dụng các công nghệ ảo hóa tiêu chuẩn hiện tại để hợp nhất nhiều loại thiết bị mạng trên các __high volume servers, switches và storages__ theo tiêu chuẩn công nghiệp được đặt trong các Datacenter, các Network node và tại nhà của người dùng cuối. 
+Mô hình lab bao gồm 2 node(cài đặt dưới dạng máy ảo trên VMWare Workstation)
+ 
+ - __WebVirtMgr host__: Cài đặt WebVirtMgr
+ - __Host Server__: Server cài đặt KVM để tạo các máy ảo
 
-NFV tách biệt các __network functions__ (NAT, firewalling, intrusion detection, DNS, caching) khỏi các thiết bị vật lý và triển khai dưới hình thức phần mềm và có thể chạy trên các server vật lý truyền thống, đồng thời có thể di trú hoặc được khởi tạo trên nhiều vị trí trong hệ thống mạng theo yêu cầu mà không cần phải triển khai thiết bị mới như trước đây.
+Cả hai máy đều cài đặt __ubuntu 14.04 LTS__ và cùng thuộc dải mạng: __172.16.69.0/24__
 
-![topo](http://i.imgur.com/YkhoIVq.png)
+## <a name="install"></a>3. Cài đặt và cấu hình WebVirt
 
-### Lịch sử của NFV
-Định nghĩa về NFV bắt nguồn từ các nhà cung cấp dịch vụ - những người đang tìm kiếm giải phát để thúc đẩy nhanh hơn việc triển khai các dịch vụ mạng mới, thu về lợi nhuận. Những hạn chế của các thiết bị phần cứng đòi hỏi họ phải áp dụng các công nghệ ảo hóa vào hệ thống mạng của họ. Vì chung mục đích như vậy, nhiều nhà cung cấp dịch vụ đã hợp tác với nhau và thành lập nên ETSI (European Telecommunications Standards Institute - 1988). Trong đó ETSI ISG NFV (ETSI Industry Specification Group for Network Functions Virtualization), là nhóm có nhiệm vụ phát triển các yêu cầu và kiến trúc để áp dụng ảo hóa cho nhiều chức năng trong hệ thống mạng viễn thông. ETSI ISG NFV vận hành từ tháng 1 năm 2013, mang 7 nhà mạng viễn thông hàng đầu đến với nhau:  AT&T, BT, Deutsche Telekom, Orange, Telecom Italia, Telefonica, và Verizon. Ngoài ra còn có sự tham gia của 52 nhà mạng, các nhà cung cấp thiết bị viễn thông, IT vendors khác. Không lâu sau đó, cộng đồng ETSI ISG NFV mở rộng với 230 công ty, bao gồm nhiều nhà cung cấp dịch vụ toàn cầu.
+## <a name="web"></a>3.1. Cài đặt WebVirtMgr(Web panel)
+- Cài đặt các gói cần thiết:
 
-## <a name="benefits"></a>2. Lợi ích của NFV
+```sh
+sudo apt-get install git python-pip python-libvirt python-libxml2 novnc supervisor nginx
+```
 
-- Giảm phi phí vốn (CAPEX - Capital expenditures) đặc biệt là với NFVI (NFV Infrastructure):
-    - Việc sử dụng COTS (commercial off-the-shelf) hardware và COTS servers giảm chi phí về phần cứng. Có rất nhiều nhà cung cấp có thể cung cấp các servers như vậy, làm tăng cạnh tranh trên thị trường, từ đó giúp cắt giảm chi phí.
-    - Nhờ việc cung cấp dịch vụ dưới hình thức phần mềm, các tổ chức không cần phải quan tâm nhiều tới các phần cứng đặc biệt để chạy các chức năng mạng nữa. Điều đó cũng có nghĩa là chi phí bảo hành của các nhà cung cấp phần cứng độc quyền không còn được áp dụng.
-    - Một servers thông thường có thể được sử dụng để xây dựng nhằm mục đích dự phòng và sẵn sàng đáp ứng yêu cầu trong môi trường datacenter của một tổ chức. Điều đó giúp cho các tổ chức, doanh nghiệp không cần phải mua và duy trì các thiết bị đắt tiền để dự phòng; và trong trường hợp gặp trục trặc, hạ tầng ảo hóa có khả năng chia sẻ hoặc hạ tầng cloud có thể di trú workload để đảm bảo hệ thống hoạt động liên tục và đảm bảo hiệu suất.
-    - NFV có khả năng sử dụng hạ tầng chia sẻ từ nhiều nhà cung cấp dịch vụ cloud để chạy các chức năng mạng theo yêu cầu bởi một tổ chức. Bằng cách đi thuê thay vì mua các thiết bị hoàn toàn, tổ chức có thể tận dụng lợi thế của mô hình pay-as-you-grow, tránh tốn kém và lãng phí để trích lập dự phòng.
-    - Do sử dụng phần cứng thương mại ít đắt tiền, doanh nghiệp có thể nâng cấp phần cứng thường xuyên hơn, giảm vòng đời sử dụng   phần cứng để tăng hiệu năng tổng thể của hệ thống mạng, giải quyết hiệu quả những yêu cầu ngày càng thay đổi đối với hệ thống mạng của họ và tăng giá trị thu được trong suốt vòng đời của các máy chủ này.
+- Cài đặt python và môi trường cho Django:
 
-- Giảm chi phí vận hành (OPEX - Operational expenditure) đối với cả NFVI (NFV Infrastructure) và NFV MANO (MFV Management and Orchestration).
-    - Service functions dưới dạng software cho phép các tổ chức di trú và mở rộng các chức năng mạng nhanh chóng, dễ dàng để giải quyết các thay đổi về yêu cầu, tối đa hóa khả năng sử dụng của các phần cứng thương mại. Một server đơn lẻ có thể sử dụng để cung cấp nhiều tính năng khác nhau, giảm thiểu yêu cầu khi triển khai, quản lý và bảo trì các loại phần cứng chuyên biệt với các chức năng chuyên biệt.
-    - Với việc sử dụng phần cứng hiệu quả hơn, các tổ chức có thể tái sử dụng không gian, chi phí điện năng và làm mát đối với hệ thống họ triển khai. Phần cứng tiêu chuẩn thường tận dụng được các kỹ thuật một cách hoàn thiện trong hệ thống datacenter cỡ lớn của nhà cung cấp dịch vụ cloud, ví dụ như Facebook hoặc Google, để phục vụ các thao tác vận hành phức tạp hơn.
-    - Các thủ tục vận hành và tự động hóa nói chung được sử dụng bởi phần cứng thương mại làm đơn giản hóa việc quản lý và triển khai. Các phần cứng tiêu chuẩn cũng như các phần mềm tiêu chuẩn như các hệ thống điều phối và các hypervisors, thường sử dụng các platform và script tự động mang lại khả năng quản lý hiệu quả với tỷ lệ trung bình từ 1:10/1:100 tới 1:1000.
-    - Về mặt tổng thể, các chức năng ảo hóa có tính linh hoạt cao hơn và ít phức tạp hơn khi quản lý; tổ chức có thể nhanh chóng và dễ dàng tạo các template để triển khai, từ đó tiến trình di trú và tái triển khai các chức năng sẽ đơn giản hơn.
+```sh
+cd ~/
+git clone git://github.com/retspen/webvirtmgr.git
+cd webvirtmgr
+sudo pip install -r requirements.txt
+./manage.py syncdb
+```
 
-- Tăng tốc độ đưa dịch vụ mới vào thương mại
-    - Các chức năng ảo hóa có thể dễ dàng cài đặt và dự phòng cho phép tổ chức nhanh chóng triển khai dịch vụ bất cứ khi nào và bất kì nơi nào họ cần.
-    - Các chức năng ảo hóa cho phép các tổ chức thử các dịch vụ mới mà không phải chịu quá nhiều rủi ro. Các framework tiêu chuẩn và khả năng khôi phục linh động khi gặp trục trặc được sử dụng bởi một framework chịu trách nhiệm điều phối, cho phép tổ chức giảm thiểu đáng kể rủi ro để triển khai sản phẩm mới từ nhà cung cấp. Chi phí thấp và sự linh hoạt trong việc di trú và mở rộng các chức năng khi cần thiết giúp thúc đẩy việc đổi mới dịch vụ. POCs và các bản thử nghiệm có thể chạy nhanh hơn, trong môi trường quy mô nhỏ hơn.
-    - Khả năng chạy các dịch vụ ảo hóa trên nền hệ thống mạng vật lý bên dưới cho phép tổ chức không cần thiết phải tốn thời gian hay chi phí nâng cấp hệ thống hiện tại của họ để cung cấp dịch vụ mới.
+Nhập các thông tin cần thiết trong quá trình cài đặt:
 
-- Cung cấp nhanh chóng và linh hoạt
-    - Do tổ chức không phải chịu khấu hao chi phí cho thiết bị đắt tiền hoặc xử lý vốn thiết bị mua lại (tại nơi mà họ cần hàng triệu đô để nâng cấp hoặc triển khai dịch vụ mới cho khách hàng đơn lẻ), họ có thể nhanh chóng và dễ dàng giải quyết yêu cầu của khách hàng. Giờ đây họ có thể dự phòng bằng một cặp server để cung cấp dịch vụ sử dụng ngắn hạn hoặc sử dụng một lần.
-    - Khả năng dễ dàng xóa bỏ, di trú và mở rộng và cấu hình các dịch vụ theo yêu cầu khách hàng hoặc yêu cầu kinh doanh thay đổi mang lại cho tổ chức khả năng cung cấp dịch vụ ở bất kỳ đâu trên thế giới và ở bất kỳ thời điểm nào.
+```sh
+You just installed Django's auth system, which means you don't have any superusers defined.
+Would you like to create one now? (yes/no): yes (Put: yes)
+Username (Leave blank to use 'admin'): admin (Put: your username or login)
+E-mail address: username@domain.local (Put: your email)
+Password: xxxxxx (Put: your password)
+Password (again): xxxxxx (Put: confirm password)
+Superuser created successfully.
+```
 
-Những khả năng này của NFV đã được các chuyên gia trong ngành viễn thông cũng như những triển khai hiện có xác nhận, thông qua các cuộc khảo sát đối với các triển khai thực tế từ các nhà cung cấp dịch vụ toàn cầu như AT&T, Telefonica, Telstra, SK Telecom, Swisscom, Vodacom. Năm 2016 chứng kiến sự di chuyển từ PoCs sang các bản thử nghiệm NFV trên môi trường thương mại. Khảo sát từ nhiều nhà cung cấp dịch vụ cho kết quả như sau.
+- Cấu hình cho nginx
+  - Chuyển thư mục webvirtmgr: `sudo mv ~/webvirtmgr /var/www/webvirtmgr`
+  - Thêm file cấu hình cho webvirtmgr: 
+  ```sh
+  sudo -i
 
-![report](https://www.sdxcentral.com/wp-content/uploads/2016/03/NFV-Business-Use-Case-NFV-Drivers.png)
+  cat << EOF > /etc/nginx/conf.d/webvirtmgr.conf
+  server {
+      listen 80 default_server;
+  server_name $hostname;
+  #access_log /var/log/nginx/webvirtmgr_access_log; 
+  
+  location /static/ {
+      root /var/www/webvirtmgr/webvirtmgr; # or /srv instead of /var
+      expires max;
+  }
+  
+  location / {
+      proxy_pass http://127.0.0.1:8000;
+      proxy_set_header X-Real-IP $remote_addr;
+      proxy_set_header X-Forwarded-for $proxy_add_x_forwarded_for;
+      proxy_set_header Host $host:$server_port;
+      proxy_set_header X-Forwarded-Proto $scheme;
+      proxy_connect_timeout 600;
+      proxy_read_timeout 600;
+      proxy_send_timeout 600;
+      client_max_body_size 1024M; # Set higher depending on your needs 
+  }
+  
+  }
+  EOF
+  ```
 
-## <a name="arch"></a>3. Kiến trúc NFV
-### High level Architecture
-- Kiến trúc NFV ở mức high level gồm 3 miền làm việc chính:
+  - Chỉnh sửa lại file cấu hình nginx:
+  ```sh
+  sudo -i 
+  
+  cat << EOF > /etc/nginx/sites-enabled/default
+  # You should look at the following URL's in order to grasp a solid understanding
+  # of Nginx configuration files in order to fully unleash the power of Nginx.
+  # http://wiki.nginx.org/Pitfalls
+  # http://wiki.nginx.org/QuickStart
+  # http://wiki.nginx.org/Configuration
+  #
+  # Generally, you will want to move this file somewhere, and start with a clean
+  # file but keep this around for reference. Or just disable in sites-enabled.
+  #
+  # Please see /usr/share/doc/nginx-doc/examples/ for more detailed examples.
+  ##
+  
+  # Default server configuration
+  #
+  #server {
+  #	listen 80 default_server;
+  #	listen [::]:80 default_server;
+  
+  	# SSL configuration
+  	#
+  	# listen 443 ssl default_server;
+  	# listen [::]:443 ssl default_server;
+  	#
+  	# Note: You should disable gzip for SSL traffic.
+  	# See: https://bugs.debian.org/773332
+  	#
+  	# Read up on ssl_ciphers to ensure a secure configuration.
+  	# See: https://bugs.debian.org/765782
+  	#
+  	# Self signed certs generated by the ssl-cert package
+  	# Don't use them in a production server!
+  	#
+  	# include snippets/snakeoil.conf;
+  
+  #	root /var/www/html;
+  
+  	# Add index.php to the list if you are using PHP
+  #	index index.html index.htm index.nginx-debian.html;
+  
+  #	server_name _;
+  
+  #	location / {
+  		# First attempt to serve request as file, then
+  		# as directory, then fall back to displaying a 404.
+  #		try_files $uri $uri/ =404;
+  #	}
+  
+  	# pass the PHP scripts to FastCGI server listening on 127.0.0.1:9000
+  	#
+  	#location ~ \.php$ {
+  	#	include snippets/fastcgi-php.conf;
+  	#
+  	#	# With php7.0-cgi alone:
+  	#	fastcgi_pass 127.0.0.1:9000;
+  	#	# With php7.0-fpm:
+  	#	fastcgi_pass unix:/run/php/php7.0-fpm.sock;
+  	#}
+  
+  	# deny access to .htaccess files, if Apache's document root
+  	# concurs with nginx's one
+  	#
+  	#location ~ /\.ht {
+  	#	deny all;
+  	#}
+  #}
+  
+  
+  # Virtual Host configuration for example.com
+  #
+  # You can move that to a different file under sites-available/ and symlink that
+  # to sites-enabled/ to enable it.
+  #
+  #server {
+  #	listen 80;
+  #	listen [::]:80;
+  #
+  #	server_name example.com;
+  #
+  #	root /var/www/example.com;
+  #	index index.html;
+  #
+  #	location / {
+  #		try_files $uri $uri/ =404;
+  #	}
+  #}
+  EOF
+  
+  ```
 
-    - VNF - Virtualised Network Functions: là các chức năng mạng hay thiết bị mạng ảo triển khai dưới dạng phần mềm trên hạ tầng NFV
-    - NFVI - NFV Infrastructure: bao gồm các tài nguyên vật lý và công nghệ ảo hóa hỗ trợ để cung cấp tài nguyên triển khai VNF.
-    - NFV Management and Orchestration: thực hiện điều phối, quản lý vòng đời các tài nguyên phần cứng và tài nguyên phần mềm hỗ trợ hạ tầng ảo hóa, quản lý vòng đời các VNFs. 
+  - Khởi động lại nginx: `sudo service nginx restart`
+  - Kích hoạt __supervisord__ khi khởi động:
+    - Với ubuntu 14.04:
+    ```sh
+    sudo -i
+    curl https://gist.github.com/howthebodyworks/176149/raw/88d0d68c4af22a7474ad1d011659ea2d27e35b8d/supervisord.sh > /etc/init.d/supervisord
+    chmod +x /etc/init.d/supervisord
+    update-rc.d supervisord defaults
+    service supervisord stop
+    service supervisord start
+    exit
+    ```
 
-    ![hlv](https://www.sdxcentral.com/wp-content/uploads/2015/04/nfv-report-2015-high-level-nfv-framework.png)
+    - Với ubuntu 16.04:
+    ```sh
+    sudo systemctl enable supervisor
+    sudo systemctl start supervisor
+    ```
 
-- NFV framework cho phép xây dựng, quản lý các VNFs instance và mối liên hệ giữa các VNFs về mặt dữ liệu, kiểm soát, quản lý, các gói phụ thuộc và các thuộc tính khác. Có nhiều góc nhìn khác nhau đối với các VNFs để từ đó nảy sinh ra các usecase khác nhau, điển hình là hai use case:
+  - Cấu hình supervisor:
+    ```
+    sudo -i
+    service novnc stop
+    insserv -r novnc
 
-    - VNF Forwarding Graph (VNF-FG hay Service Chaining): đặc tả kết nối mạng giữa các VNFs (firewall, NAT, load balancer, etc.) tạo thành chuỗi các dịch vụ (Service Chain)
-    - Virtualisation of the Home Environment.
+    cat << EOF > /etc/insserv/overrides/novnc
+    #!/bin/sh
+    ### BEGIN INIT INFO
+    # Provides:          nova-novncproxy
+    # Required-Start:    $network $local_fs $remote_fs $syslog
+    # Required-Stop:     $remote_fs
+    # Default-Start:     
+    # Default-Stop:      
+    # Short-Description: Nova NoVNC proxy
+    # Description:       Nova NoVNC proxy
+    ### END INIT INFO
+    EOF
+
+    chown -R www-data:www-data /var/www/webvirtmgr
+
+    cat << EOF > /etc/supervisor/conf.d/webvirtmgr.conf
+    [program:webvirtmgr]
+    command=/usr/bin/python /var/www/webvirtmgr/manage.py run_gunicorn -c /var/www/webvirtmgr/conf/gunicorn.conf.py
+    directory=/var/www/webvirtmgr
+    autostart=true
+    autorestart=true
+    stdout_logfile=/var/log/supervisor/webvirtmgr.log
+    redirect_stderr=true
+    user=www-data
+    
+    [program:webvirtmgr-console]
+    command=/usr/bin/python /var/www/webvirtmgr/console/webvirtmgr-console
+    directory=/var/www/webvirtmgr
+    autostart=true
+    autorestart=true
+    stdout_logfile=/var/log/supervisor/webvirtmgr-console.log
+    redirect_stderr=true
+    user=www-data
+    EOF
+    
+    sudo service supervisor stop
+    sudo service supervisor start
+    exit 
+    ```
+
+## <a name="host"></a>3.2. Cài đặt host server(server chứa các VM)
+- Thao tác này thực hiện trên server host. Trước khi cài đặt KVM lên node này, cần kiểm tra xem bộ xử lý của máy có hỗ trợ ảo hóa không (VT-x hoặc AMD-V). Nếu thực hiện lab trên máy thật cần khởi động lại máy này vào BIOS thiết lập chế độ hỗ trợ ảo hóa. Tuy nhiên bài lab này thực hiện trên VMWare nên trước khi cài đặt cần thiết lập cho máy ảo hỗ trợ ảo hóa như sau: 
+
+![vm](http://i.imgur.com/XwwRHUl.png)
+
+- Cài đặt KVM:
+
+```sh
+sudo apt-get install qemu-kvm libvirt-bin ubuntu-vm-builder bridge-utils
+sudo adduser `id -un` libvirtd
+```
+
+- Cấu hình libvirt:
+
+```sh
+sudo -i
+
+cat << EOF > /etc/libvirt/libvirtd.conf
+listen_tls = 0
+listen_tcp = 1
+listen_addr = "0.0.0.0"
+unix_sock_group = "libvirtd"
+unix_sock_ro_perms = "0777"
+unix_sock_rw_perms = "0770"
+auth_unix_ro = "none"
+auth_unix_rw = "none"
+auth_tcp = "none"
+EOF
+
+cat << EOF > /etc/default/libvirt-bin
+start_libvirtd="yes"
+libvirtd_opts="-l -d"
+EOF
+
+service libvirt-bin restart
+```
+
+- Kiểm tra lại việc cài đặt:
+```sh
+root@ubuntu:~# ps ax | grep [l]ibvirtd
+  1638 ?        Sl     1:24 /usr/sbin/libvirtd -l -d
+root@ubuntu:~# sudo netstat -pantu | grep libvirtd
+tcp        0      0 0.0.0.0:16509           0.0.0.0:*               LISTEN                                                                                              1638/libvirtd
+tcp        0      0 172.16.69.136:16509     172.16.69.133:44438     ESTABLISH                                                                                        ED 1638/libvirtd
+tcp        0      0 172.16.69.136:16509     172.16.69.133:44418     ESTABLISH                                                                                        ED 1638/libvirtd
+tcp        0      0 172.16.69.136:16509     172.16.69.133:44444     ESTABLISH                                                                                        ED 1638/libvirtd
+tcp        0      0 172.16.69.136:16509     172.16.69.133:44430     ESTABLISH                                                                                        ED 1638/libvirtd
+tcp        0      0 172.16.69.136:16509     172.16.69.133:44448     ESTABLISH                                                                                        ED 1638/libvirtd
+root@ubuntu:~# virsh -c qemu+tcp://127.0.0.1/system
+Welcome to virsh, the virtualization interactive terminal.
+Type:  'help' for help with commands
+'quit' to quit
 
 
-### NFV Reference Architectural Framework
+virsh # exit
+```
 
-![arch-fr](http://i.imgur.com/xQKq5GD.png)
+_Chú ý: virsh là một công cụ quản lý máy ảo tương tự như webvirt, virt-manager, etc. nhưng có giao diện dòng lệnh._
 
-Các khối chức năng:
-- Virtualised Network Function (VNF): là các chức năng mạng ảo hóa như: NAT, DHCP, firewall, load balancer, PGW (Packet Data Network Gateway), Serving Gateway (SGW), Mobility Management Entity (MME), etc. Các VNF có thể triển khai trong 1 VM hoặc cũng có thể là sự kết hợp của nhiều VM tùy vào loại dịch vụ mạng mà VNF cung cấp và cách triển khai.
+_Ba bước tiếp theo có thể bỏ qua_
+- Cài đặt OpenvSwitch để thiết lập chế độ Bridge cho các máy ảo KVM: 
 
-- Element Management System (EMS): quản lý việc vận hành của VNF, giống như hệ thống EMS quản lý cho các thành phần network vật lý, EMS quản lý sự cố và hiệu năng của VNF. EMS làm được điều đó thông qua interface phù hợp. Một EMS có thể quản lý cho 1 VNF hoặc nhiều VNF. Tự thân EMS cũng có thể là một VNF.
+```sh
+apt-get install -y openvswitch-switch openvswitch-datapath-dkms
+```
 
-- NFV Infrastructure, bao gồm:
-    - Tài nguyên vật lý và tài nguyên ảo hóa: các tài nguyên vật lý bao gồm các tài nguyên tính toán, lưu trữ và network cung cấp chức năng xử lý, lưu trữ và kết nối tới các VNF thông qua lớp ảo hóa hypervisors. Tài nguyên tính toán vật lý là Commercial off-the-shelf.
-    - Lớp ảo hóa
+- Thiết lập tạo thêm bridge `br-ex` và gắn card `eth0` của host vào bridge này:
 
-- Virtualised Infrastructure Manager(s): thống kê, giám sát tài nguyên trên hạ tầng NFV; quản lý và cấp phát tài nguyên cho các VNF.
-    - NFV Orchestrator chịu trách nhiệm tạo, bảo trì và xóa bỏ các network services. Nếu có nhiều VNFs, orchestrator sẽ kích hoạt việc khởi tạo E2E service thông qua nhiều VNFs. NFVO cũng chịu trách nhiệm quản lý tài nguyên của NFVI (các tài nguyên compute, storage, networking giữa nhiều VIMs trong mạng). Orchestrator thực hiện các chức năng của nó gián tiếp qua VNFM và VIM chứ không trực tiếp tới từng VNFs.
+```sh
+ovs-vsctl add-br br-ex
+ovs-vsctl add-port br-ex eth0
+ifconfig eth0 0
+ifconfig br-ex 172.16.69.136/24
+route add default gw 172.16.69.1
+```
 
-        Ví dụ: nhiều VNFs cần phải xâu lại với nhau để tạo E2E service, ví dụ như virtual Base station và virtual EPC. Khi đó NFVO sẽ nói chuyện với các VNFs để tạo E2E network theo yêu cầu. 
+- Cấu hình card `br-ex` trong file: `vi /etc/network/interfaces`
 
-    - VNF Manager(s) quản lý một hoặc nhiều VNF(s), cụ thể là quản lý vòng đời các VNF instances. Quản lý vòng đời ở đây bao gồm việc cài đặt, bảo trì và hủy bỏ VNFs. Một VNF manager có thể thực hiện cùng chức năng với EMS nhưng thông qua giao diện phù hợp với interface/reference point trong kiến trúc NFV (Ve-Vnfm).            
+```sh
+auto br-ex
+iface br-ex inet static
+address 172.16.69.136/24
+gateway 172.16.69.1
+dns-nameservers 8.8.8.8
+  
+auto eth0
+iface eth0 inet manual
+  up ifconfig $IFACE 0.0.0.0 up
+  up ip link set $IFACE promisc on
+  down ip link set $IFACE promisc off
+  down ifconfig $IFACE down
+```
 
-    - Operations and Business Support Systems (OSS/BSS): công cụ của nhà cung cấp dịch vụ mạng viễn thông (operator), hỗ trợ trong việc quản lý vận hành hệ thống mạng (OSS) cũng như trong việc quản lý khách hàng, kinh doanh, tính cước (BSS). Với sự phát triển của mạng viễn thông (ngày càng phức tạp, nhiều dịch vụ, nhiều thiết bị,...), OSS/BSS trở thành một công cụ không thể thiếu của các operators giúp họ quản lý vận hành mạng một cách hiệu quả hơn.
+- Tạo thư mục chứa các images hệ điều hành: `mkdir -p /var/www/webvirtmgr/images`
+- Thực hiện upload iso image lên host server sử dụng winscp hoặc scp thông qua một ssh client:
 
-## <a name="usecases"></a>4. NFV Usecases
-### Network Functions Virtualisation Infrastructure as a Service
-Hạ tầng NFV được xây dựng dựa trên công nghệ Cloud Computing. Các nhà cung cấp dịch vụ (Service Providers - SPs) do đó chạy các VNF instances trên hạ tầng NFV Cloud-based đó. Một số SPs có đủ tài nguyên để triển khai và duy trì hạ tầng vật lý ở quy mô toàn cầu, khách hàng có thể yêu cầu dịch vụ theo yêu cầu ở bất kỳ đâu trên thế giới. Tuy nhiên, khả năng triển khai từ xa và chạy các VNFs trên hạ tầng NFV cung cấp như một dịch vụ bởi một SPs khác sẽ là hiệu quả hơn khi cung cấp dịch vụ cho khách hàng toàn cầu. Khả năng một SP cung cấp hạ tầng NFV của họ cho SP(s) khác cho phép kích hoạt thêm một dịch vụ thương mại để cung cấp hỗ trợ trực tiếp và đẩy nhanh việc triển khai hạ tầng NFV. Hạ tầng NFV cũng có thể được cung cấp từ cơ sở này sang cơ sở khác trong nội bộ một SP.
+![upload](http://i.imgur.com/yGt7hOy.png)
 
-![nfviaas](http://i.imgur.com/OVG7ynP.png)
+## <a name="features"></a>4. Sử dụng WebVirt
+- Thêm host mới
 
-### Virtual Network Function as a Service (VNFaaS)</h3>
-Hệ thống mạng các doanh nghiệp hiện đang triển khai các dịch vụ sử dụng một thiết bị vật lý phục vụ cho mỗi tính năng, gặp vấn đề về sự thiếu linh hoạt, cài đặt và bảo trì chậm, khó khăn. Các chức năng có thể cung cấp trong một access router tích hợp nhưng hạn chế về tính năng. Do đó khi doanh nghiệp phát triển, đòi hỏi nhiều dịch vụ hơn thì họ di trú dịch vụ và ứng dụng lên datacenter hoặc public cloud. Ngoài ra, xu hướng mobility và BYOD (Bring your own device) là hệ quả tất yếu dẫn tới yêu cầu các dịch vụ như ngăn chặn rò rỉ dữ liệu.
+![add host](http://i.imgur.com/KscFtCF.png)
 
-*__BYOD - bring your own device:__ là xu hướng các công ty khuyến khích nhân viên của họ sử dụng thiết bị cá nhân như smartphone, tablet để truy cập dịch vụ hay dữ liệu của công ty, điều đó nảy sinh ra vấn đề về bảo mật và nguy cơ bị đánh cắp thông tin.*
+- Tạo thư mục chứa image các máy ảo và iso các image
 
-Giải pháp cho vấn đề trên là đưa các Access Router ảo vCPE vào trong mạng của nhà vận hành, triển khai dưới dạng dịch vụ chạy trên các máy ảo hay VNF (Virtualize Network Functions) instance trên hạ tầng NFV (sử dụng công nghệ cloud computing). Nhờ vậy, khi cần cung cấp thêm các tính năng networking nâng cao như `measured service`, các dịch vụ này sẽ được đáp ứng nhanh chóng và quan trọng là doanh nghiệp không phải tốn thêm chi phí vận hành mua các thiết bị vật lý mới như trước đây để triển khai các dịch vụ đó. Giờ đây họ chỉ phải trả chi phí cơ bản cho nhà cung cấp để họ cung cấp thêm dịch vụ, hoặc mở rộng tài nguyên trên hạ tầng NFV để cấp phát thêm tài nguyên cho các VNF instance đáp ứng nhu cầu sử dụng tăng lên của các VNF.
+![add dir](http://i.imgur.com/xTULGSt.png)
+![add dir](http://i.imgur.com/t5eDWOJ.png)
 
-![nfviaas-sth](http://i.imgur.com/sAyWTUQ.png)
+- Thêm bridge
 
-![nfviaas-sth1](http://i.imgur.com/lcDF1XV.png)
+![add bridge](http://i.imgur.com/bi0hVCm.png)
 
-### Service Chains (VNF Forwarding Graphs)
-Network Function Forwarding Graph (NFFG) định nghĩa một tập hợp có trình tự các Network Functions mà packet phải đi qua, tạo thành Network Service. VNFFGs tương tự như vậy, tuy nhiên nó là sự kết nối về mặt logic giữa các thiết bị mạng ảo triển khai trong các VNF (Virtualized Network Functions), ngoài ra cũng có thể kết nối nội bộ với các Physical Network Functions để cung cấp Network services.
+- Tạo máy ảo mới
+  - Click vào domain kvm-136 đã khởi tạo như ở trên, chuyển qua tab Storage
 
-- Logical View:
+  ![storage](http://i.imgur.com/4RHM0CY.png)
 
-![logical-view](http://i.imgur.com/9oeLxpf.png)
+  - Click vào nút "Add image", tạo image của hệ điều hành, thiết lập tên, định dạng và kích thước phù hợp
 
-- Service Chaining - VNFFG scenario:
+  ![image](http://i.imgur.com/Ms8gtE6.png)
 
-    - __INTRA-DATACENTER SERVICE CHAINING__:
+  - Tạo instance(máy ảo) mới 
 
-    ![intra](http://www.sdnspace.com/Portals/0/LiveBlog/983/fig1_thumb.png)
+  ![instance](http://i.imgur.com/bS9IGMi.png)
 
-    - __INTER-DATACENTER SERVICE CHAINING__:
+  - Tùy chỉnh các thông số của máy ảo
 
-    ![inter](http://i.imgur.com/wsIYRkT.png)
+  ![mod](http://i.imgur.com/bYj9zI7.png)
+  ![mod](http://i.imgur.com/IpNdPBM.png)
 
-### Virtualisation of the Home Environment
-- Các nhà cung cấp dịch vụ cung cấp dịch vụ gia đình sử dụng hệ thống network và CPE (customer premises equipments) đặt tại hộ gia đình. Các thiết bị CPE này nhận biết nhà cung cấp và nhà cung cấp dịch vụ bằng cách sử dụng RGW (Residential Gateway) cho dịch vụ Internet và VOIP, Set-top box với dịch vụ đa phương tiện. 
+  - Chọn file iso để cài đặt hệ điều hành
 
-- Ứng dụng NFV để ảo hóa môi trường cung cấp dịch vụ gia đình có nhiều ưu điểm:
-    - Giảm chi phí về STB và RGW
+  ![iso](http://i.imgur.com/9YYnG06.png)
 
-    - Giảm chi phí duy trì và nâng cấp CPEs
+  - Bật máy ảo 
 
-    - Cải thiện chất lượng trải nghiệm dịch vụ (QoE) như điều khiển truy cập tới tất cả cá nội dung và dịch vụ, hỗ trợ multi-screen và di động.
+  ![on](http://i.imgur.com/unGOo9Z.png)
 
-    - Cung cấp dịch vụ mới nhanh chóng và tiện lợi, giảm bớt sự rườm rà vì phụ thuộc chức năng của CPE cũng như tiến trình cài đặt cũng được đơn giản hóa.
+  - Bật VNC viewer
+  
+  ![vnc](http://i.imgur.com/02xFtIY.png)
+  ![vnc](http://i.imgur.com/rK6qwTo.png)
 
--  Với mạng truyền thống không sử dụng ảo hóa, mỗi gia đình sẽ sử dụng một RGW và một IP STB. Tất cả các dịch vụ được nhận từ RGW, chuyển đổi sang địa chỉ private IP và cung cấp vào hộ gia đình đó. RGW kết nối (thông qua PPPoE Tunnel hoặc IPoE) tới BNG để kết nối tới Internet hoặc DC. 
-
-![vhe](http://i.imgur.com/6hHDN42.png)
-
-- Với hạ tầng ảo hóa NFV, các dịch vụ và chức năng di trú từ thiết bị tại nhà lên NFV cloud, các thiết bị như RGW và STB được triển khai trong các VNF instance và trở thành vRGW và vSTB.
-
-![nfv](http://i.imgur.com/u0LkmH3.png)
-
-### Virtual Network Platform as a Service (VNPaaS
-### Virtualisation of Mobile Core Network and IMS
-### Virtualisation of Mobile base station
-### Virtualisation of CDNs (vCDN)
-### Fixed Access Network Functions Virtualisation
-
-## <a name="challenges"></a>5. Thách thức của NFV
-- __Portability/Interoperabiliby__: Các thiết bị mạng ảo phải có tính di động đối với nhiều loại phần cứng của các nhà cung cấp khác nhau, và tương thích với nhiều loại hypervisors. 
-
-- __Performance Trade-Off__: Các chức năng mạng ảo hiệu năng không thể đạt được hiệu năng như các thiết bị phần cứng, do đó thách thức là tối thiểu hóa latency, throughput và quá tải khi xử lý dữ liệu bằng việc sử dụng hypervisors phù hợp và các công nghệ phần mềm hiện đại.
-- __Migration and co-existence of legacy & compatibility with existing platforms__: NFV phải làm việc trong môi trường hybrid network bao gồm các thiết bị mạng vật lý truyền thống cũng như các thiết bị mạng ảo. Các thiết bị mạng ảo do đó cũng phải sử dụng North Bound Interfaces (phục vụ yêu cầu quản lý và kiểm soát) và trao đổi dữ liệu với các thiết bị vật lý triển khai cùng chức năng.
-- __Management and Orchestration__: NFV infrastructure cần khởi tạo VNFs ở vị trí phù hợp ở thời điểm phù hợp, cấp phát và mở rộng tài nguyên phần cứng một cách linh động cho các VNFs đó và kết nối chúng tạo ra service chaining. Tính linh hoạt trong việc dự phòng dịch vụ đặt ra yêu cầu quản lý được cả thiết bị phần cứng và phần mềm.
-
-- __Automation__: Network Functions Virtualization chỉ có thể mở rộng phạm vi nếu như các chức năng mạng có thể tự động hóa.
-- __Security & Resilience: __Các thiết bị mạng ảo phải có khả năng tái tạo theo yêu cầu sau khi gặp sự cố, đảm bảo tính bảo mật tương tự như thiết bị vật lý, đặc biệt hypervisor và cấu hình của VNF phải đảm bảo bảo mật. Người vận hành mạng phải sử dụng các công cụ để kiểm soát và kiểm chứng cấu hình của hypervisors để đảm bảo tính an toàn của hypervisors và thiết bị ảo hóa.
-- __Network Stability: __Đảm bảo tính ổn định chỉ quan trọng trong một số trường hợp, ví dụ khi VFs tái thay đổi vị trí hoặc trong trường hợp tái cấu hình lại VFs(do sự cố về phần cứng hoặc phần mềm), hoặc khi bị tấn công mạng. Thách thức này không chỉ riêng đối với NFV mà là thách thức với cả hệ thống mạng hiện tại.
-- __Integration: __Người vận hành mạng cần phải "mix & match" phần cứng, hypervisors và các thiết bị mạng ảo từ nhiều nhà cung cấp khác nhau mà không gây phát sinh quá nhiều chi phí để tích hợp cũng như tránh lock-in, phụ thuộc vào nhà cung cấp.
-
-## <a name="ref"></a>6. Tham khảo
-- [1] - <a href="https://www.sdxcentral.com/nfv/definitions/whats-network-functions-virtualization-nfv/">https://www.sdxcentral.com/nfv/definitions/whats-network-functions-virtualization-nfv/</a>
-
-- [2] - <a href="https://www.sdxcentral.com/nfv/definitions/etsi-isg-nfv/">https://www.sdxcentral.com/nfv/definitions/etsi-isg-nfv/</a>
-
-- [3] - <a href="https://www.sdxcentral.com/reports/nfv-mano-nfvi-2016/chapter-1-investment-benefits-of-nfv/">https://www.sdxcentral.com/reports/nfv-mano-nfvi-2016/chapter-1-investment-benefits-of-nfv/</a>
-
-- [4] - <a href="https://pdfs.semanticscholar.org/99d4/73437ea95dddc983a197e96569505be757f2.pdf">https://pdfs.semanticscholar.org/99d4/73437ea95dddc983a197e96569505be757f2.pdf</a>
+## <a name="ref"></a>5. Tham khảo
+- [howtoforge](https://www.howtoforge.com/tutorial/kvm-on-ubuntu-14.04/)
+- [webvirt](https://github.com/retspen/webvirtmgr)
